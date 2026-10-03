@@ -1,4 +1,4 @@
-name: Deploy Laravel to Nginx
+name: Despliegue de Laravel a Nginx
 
 on:
   push:
@@ -20,13 +20,6 @@ jobs:
         php-version: '8.4'
         extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, bcmath, curl
 
-    - name: Copy environment configuration
-      run: |
-        if [ ! -f /var/www/tu-proyecto/.env ]; then
-          cp .env.example /var/www/tu-proyecto/.env
-          php artisan key:generate
-        fi
-
     - name: Install Dependencies
       run: composer install --no-dev --optimize-autoloader --no-interaction
 
@@ -43,26 +36,34 @@ jobs:
     - name: Deploy to Nginx web root
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: |
-        # 1. Copiar los archivos actualizados al directorio que sirve Nginx
+        # 1. Crear el directorio de destino con permisos de sudo si no existe
+        sudo mkdir -p /var/www/tu-proyecto
+        sudo chown -R $USER:$USER /var/www/tu-proyecto
+
+        # 2. Sincronizar archivos del repositorio
         rsync -avz --exclude='.git' --exclude='storage' . /var/www/tu-proyecto/
 
         cd /var/www/tu-proyecto
 
-        # 2. Asegurar existencia de SQLite de producción
+        # 3. Copiar el .env desde /home/grupoidtpy/deploy/.env si existe
+        if [ -f /home/grupoidtpy/deploy/.env ]; then
+          cp /home/grupoidtpy/deploy/.env /var/www/tu-proyecto/.env
+        fi
+
+        # 4. Asegurar existencia de SQLite de producción
+        mkdir -p database
         touch database/database.sqlite
 
-        # 3. Ejecutar migraciones en la BD de producción
+        # 5. Ejecutar migraciones y optimizaciones de Laravel
         php artisan migrate --force
-
-        # 4. Optimizar cachés de Laravel
         php artisan config:cache
         php artisan route:cache
         php artisan view:cache
 
-        # 5. Ajustar permisos para el usuario del servidor web (www-data)
+        # 6. Ajustar permisos finales para Nginx y PHP-FPM (www-data)
         sudo chown -R www-data:www-data /var/www/tu-proyecto
         sudo chmod -R 775 /var/www/tu-proyecto/storage /var/www/tu-proyecto/bootstrap/cache /var/www/tu-proyecto/database
         sudo chmod 664 /var/www/tu-proyecto/database/database.sqlite
 
-        # 6. Recargar PHP-FPM para limpiar OPcache
+        # 7. Recargar PHP-FPM
         sudo systemctl reload php8.4-fpm
