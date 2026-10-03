@@ -20,9 +20,11 @@ jobs:
         php-version: '8.4'
         extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, bcmath, curl
 
-    - name: Install Dependencies
-      run: composer install --no-dev --optimize-autoloader --no-interaction
+    # 1. Instalar TODAS las dependencias (incluyendo dev) para poder correr los tests
+    - name: Install Dev Dependencies
+      run: composer install --no-interaction --prefer-dist
 
+    # 2. Ejecutar las pruebas unitarias
     - name: Execute tests
       env:
         DB_CONNECTION: sqlite
@@ -30,40 +32,46 @@ jobs:
       run: |
         mkdir -p database
         touch database/database.sqlite
-        php artisan test
+        # Intenta usar artisan test, y si no existe usa el ejecutable de PHPUnit/Pest
+        php artisan test || ./vendor/bin/phpunit || ./vendor/bin/pest
+
+    # 3. Limpiar dependencias dev antes del despliegue a producción
+    - name: Optimize Dependencies for Production
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: composer install --no-dev --optimize-autoloader --no-interaction
 
     # --- PASO DE DESPLIEGUE A NGINX ---
     - name: Deploy to Nginx web root
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: |
-        # 1. Crear el directorio de destino con permisos de sudo si no existe
+        # Crear la carpeta de destino si no existe y ajustar permisos iniciales
         sudo mkdir -p /var/www/tu-proyecto
         sudo chown -R $USER:$USER /var/www/tu-proyecto
 
-        # 2. Sincronizar archivos del repositorio
+        # Copiar repositorio al web root de Nginx
         rsync -avz --exclude='.git' --exclude='storage' . /var/www/tu-proyecto/
 
         cd /var/www/tu-proyecto
 
-        # 3. Copiar el .env desde /home/grupoidtpy/deploy/.env si existe
+        # Copiar .env guardado en el servidor
         if [ -f /home/grupoidtpy/deploy/.env ]; then
           cp /home/grupoidtpy/deploy/.env /var/www/tu-proyecto/.env
         fi
 
-        # 4. Asegurar existencia de SQLite de producción
+        # Preparar base de datos SQLite de producción
         mkdir -p database
         touch database/database.sqlite
 
-        # 5. Ejecutar migraciones y optimizaciones de Laravel
+        # Migraciones y cachés de producción
         php artisan migrate --force
         php artisan config:cache
         php artisan route:cache
         php artisan view:cache
 
-        # 6. Ajustar permisos finales para Nginx y PHP-FPM (www-data)
+        # Permisos finales para www-data (Nginx / PHP-FPM)
         sudo chown -R www-data:www-data /var/www/tu-proyecto
         sudo chmod -R 775 /var/www/tu-proyecto/storage /var/www/tu-proyecto/bootstrap/cache /var/www/tu-proyecto/database
         sudo chmod 664 /var/www/tu-proyecto/database/database.sqlite
 
-        # 7. Recargar PHP-FPM
+        # Recargar PHP-FPM
         sudo systemctl reload php8.4-fpm
