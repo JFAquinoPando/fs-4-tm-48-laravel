@@ -20,20 +20,20 @@ jobs:
         php-version: '8.4'
         extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, bcmath, curl
 
-    # 1. Instalar TODAS las dependencias (incluyendo dev) para poder correr los tests
+    # 1. Instalar dependencias completas para testing
     - name: Install Dev Dependencies
       run: composer install --no-interaction --prefer-dist
 
-    # 2. Ejecutar las pruebas unitarias
+    # 2. Ejecutar las pruebas con APP_KEY asignada temporalmente
     - name: Execute tests
       env:
         DB_CONNECTION: sqlite
         DB_DATABASE: database/database.sqlite
+        APP_KEY: base64:A28a+94L6I34J4/yL+zM2P/K/f+X+G8S/k+4H5+xL8Y=
       run: |
         mkdir -p database
         touch database/database.sqlite
-        # Intenta usar artisan test, y si no existe usa el ejecutable de PHPUnit/Pest
-        php artisan test || ./vendor/bin/phpunit || ./vendor/bin/pest
+        php artisan test
 
     # 3. Limpiar dependencias dev antes del despliegue a producción
     - name: Optimize Dependencies for Production
@@ -44,7 +44,7 @@ jobs:
     - name: Deploy to Nginx web root
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: |
-        # Crear la carpeta de destino si no existe y ajustar permisos iniciales
+        # Crear la carpeta de destino si no existe
         sudo mkdir -p /var/www/tu-proyecto
         sudo chown -R $USER:$USER /var/www/tu-proyecto
 
@@ -62,13 +62,13 @@ jobs:
         mkdir -p database
         touch database/database.sqlite
 
-        # Migraciones y cachés de producción
+        # Migraciones y optimizaciones de producción
         php artisan migrate --force
         php artisan config:cache
         php artisan route:cache
         php artisan view:cache
 
-        # Permisos finales para www-data (Nginx / PHP-FPM)
+        # Permisos finales para Nginx / PHP-FPM (www-data)
         sudo chown -R www-data:www-data /var/www/tu-proyecto
         sudo chmod -R 775 /var/www/tu-proyecto/storage /var/www/tu-proyecto/bootstrap/cache /var/www/tu-proyecto/database
         sudo chmod 664 /var/www/tu-proyecto/database/database.sqlite
