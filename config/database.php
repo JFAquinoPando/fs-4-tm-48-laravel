@@ -34,9 +34,16 @@ return [
 
         'sqlite' => [
             'driver' => 'sqlite',
-            'url' => env('DB_URL'),
-            'database' => env('DB_DATABASE', database_path('database.sqlite')),
-            'prefix' => '',
+            'database' => (function () {
+                $database = env('DB_DATABASE');
+                if (! $database) {
+                    return database_path('database.sqlite');
+                }
+                if ($database === ':memory:' || str_starts_with($database, '/') || preg_match('/^[a-zA-Z]:/', $database)) {
+                    return $database;
+                }
+                return base_path($database);
+            })(),
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
             'busy_timeout' => null,
             'journal_mode' => null,

@@ -54,9 +54,16 @@ jobs:
 
         cd /var/www/tu-proyecto
 
-        # Copiar .env guardado en el servidor
+        # Copiar .env guardado en el servidor o inicializarlo si no existe
         if [ -f /home/grupoidtpy/deploy/.env ]; then
           cp /home/grupoidtpy/deploy/.env /var/www/tu-proyecto/.env
+        elif [ ! -f /var/www/tu-proyecto/.env ]; then
+          cp .env.example /var/www/tu-proyecto/.env
+        fi
+
+        # Generar clave de aplicación si no está presente
+        if ! grep -q "^APP_KEY=base64:" /var/www/tu-proyecto/.env; then
+          php artisan key:generate --force
         fi
 
         # Preparar directorios de almacenamiento, cache y base de datos
@@ -68,8 +75,9 @@ jobs:
         mkdir -p database
         touch database/database.sqlite
 
-        # Migraciones y optimizaciones de producción
+        # Migraciones, datos y optimizaciones de producción
         php artisan migrate --force
+        php artisan db:seed --force
         php artisan config:cache
         php artisan route:cache
         php artisan view:cache
