@@ -59,7 +59,12 @@ jobs:
           cp /home/grupoidtpy/deploy/.env /var/www/tu-proyecto/.env
         fi
 
-        # Preparar base de datos SQLite de producción
+        # Preparar directorios de almacenamiento, cache y base de datos
+        mkdir -p storage/framework/cache/data
+        mkdir -p storage/framework/sessions
+        mkdir -p storage/framework/views
+        mkdir -p storage/logs
+        mkdir -p bootstrap/cache
         mkdir -p database
         touch database/database.sqlite
 
