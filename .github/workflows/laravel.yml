@@ -33,6 +33,7 @@ jobs:
       run: |
         mkdir -p database
         touch database/database.sqlite
+        php artisan migrate --force
         php artisan test
 
     # 3. Limpiar dependencias dev antes del despliegue a producción
@@ -49,7 +50,7 @@ jobs:
         sudo chown -R $USER:$USER /var/www/tu-proyecto
 
         # Copiar repositorio al web root de Nginx
-        rsync -avz --exclude='.git' --exclude='storage' . /var/www/tu-proyecto/
+        rsync -avz --exclude='.git' --exclude='storage' --exclude='database/*.sqlite*' . /var/www/tu-proyecto/
 
         cd /var/www/tu-proyecto
 
